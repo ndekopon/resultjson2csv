@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Result Json to CSV</title>
+<meta charset="utf-8">
+<style>
+    html {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+    body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+    }
+    table {
+        background-color: #000;
+    }
+    th {
+        background-color: #89f5fd;
+    }
+    td {
+        background-color: #FFF;
+    }
+</style>
+</head>
+<body>
+<h1>リザルトJSON変換(→CSV)</h1>
+<p>ブラウザのクライアント領域にリザルトJSONファイルをドラッグ&amp;ドロップしてください</p>
+<table>
+    <thead>
+        <tr>
+            <th>ファイル名</th>
+            <th>ファイルサイズ(byte)</th>
+            <th>開始日時</th>
+            <th>終了日時</th>
+            <th>CSVファイル</th>
+        </tr>
+    </thead>
+    <tbody id="csvlist"></tbody>
+</table>
+<!-- SCRIPT -->
+<script type="module">
+function csvText(text) {
+    let r = "";
+    let quoted = false;
+    for (const c of text) {
+        if (c == '"') {
+            quoted = true;
+            r += '""';
+        } else if (c == ',') {
+            quoted = true;
+            r += ',';
+        } else {
+            r += c;
+        }
+    }
+    if (quoted) {
+        r = '"' + r + '"';
+    }
+    return r;
+}
+function addJson(json, name, size) {
+    console.log(json);
+    const lines = ['name,kills,assists,character,damage_dealt,damage_taken,team_name,team_placement,team_kills'];
+    if (!('start' in json)) return;
+    if (!('end' in json)) return;
+    const start = json.start;
+    const end = json.end;
+    for (const [teamid, team] of Object.entries(json.teams)) {
+            if ('players' in team) {
+                for (const player of team.players) {
+                let line = [];
+                if ('name' in player) line.push(csvText(player.name));
+                if ('kills' in player) line.push(player.kills);
+                if ('assists' in player) line.push(player.assists);
+                if ('character' in player) line.push(player.character);
+                if ('damage_dealt' in player) line.push(player.damage_dealt);
+                if ('damage_taken' in player) line.push(player.damage_taken);
+                if ('name' in team) line.push(team.name);
+                if ('placement' in team) line.push(team.placement);
+                if ('kills' in team) line.push(team.kills);
+                if (line.length == 9) {
+                    lines.push(line.join(','));
+                }
+            }
+        }
+    }
+    if (lines.length == 1) return;
+    const csv = lines.join('\r\n');
+    console.log(csv);
+
+    // 表示
+    const tr = document.createElement('tr');
+    const td_name = document.createElement('td');
+    const td_size = document.createElement('td');
+    const td_start = document.createElement('td');
+    const td_end = document.createElement('td');
+    const td_csv = document.createElement('td');
+    const a_csv = document.createElement('a');
+
+    td_name.innerText = name;
+    td_size.innerText = size;
+    td_start.innerText = (new Date(start)).toLocaleString();
+    td_end.innerText = (new Date(end)).toLocaleString();
+    const type = 'text/csv';
+    a_csv.href = window.URL.createObjectURL(new Blob([csv], { type: type }), { type: type });
+    a_csv.download = Date.now().toString() + '.csv';
+    a_csv.innerText = 'CSV Download';
+    td_csv.appendChild(a_csv);
+    tr.appendChild(td_name);
+    tr.appendChild(td_size);
+    tr.appendChild(td_start);
+    tr.appendChild(td_end);
+    tr.appendChild(td_csv);
+    document.getElementById('csvlist').appendChild(tr);
+}
+window.addEventListener('load', () => {
+    document.body.addEventListener('dragover', (ev) => {
+        ev.preventDefault();
+        ev.dataTransfer.dropEffect = "copy";
+    });
+    document.body.addEventListener('drop', (ev) => {
+        ev.preventDefault();
+        for (const item of ev.dataTransfer.items) {
+            if (item.kind == 'file' && item.type == 'application/json') {
+                const file = item.getAsFile();
+                const name = file.name;
+                const size = file.size;
+                const reader = new FileReader();
+                reader.addEventListener('load', (ev) => {
+                    if (ev.total == size && ev.loaded == size) {
+                        const text = ev.target.result;
+                        try {
+                            const json = JSON.parse(text);
+                            if (typeof(json) == 'object' && 'teams' in json) {
+                                addJson(json, name, size);
+                            }
+                        } catch (err) {
+                            console.log(err);
+                        }
+                    }
+                });
+                reader.readAsText(file);
+            }
+        }
+    });
+});
+</script>
+</body>
+</html>
